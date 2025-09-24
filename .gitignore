@@ -1,0 +1,38 @@
+# Node dependencies
+/node_modules
+
+# Build output
+/dist
+/build
+
+# TypeScript cache
+/*.tsbuildinfo
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+/logs
+*.log
+
+# Environment variables
+.env
+.env.*.local
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+.idea
+.vscode
+*.swp
+
+# Coverage reports
+/coverage
+
+# Cache
+/.eslintcache
+/.cache
+
+# Private files
+account_key.json
