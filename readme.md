@@ -24,14 +24,6 @@ An external database hosted on **PostgreSQL** stores the internal state of the s
   - `last_attempted_at`
   - `idempotency_key` (unique)
 
-- **transactions**
-  - `tx_id`
-  - `order_id`
-  - `conduit_transaction_id`
-  - `status`
-  - `quote_rate`
-  - `raw_response`
-
 ---
 
 ## Technology Stack
@@ -129,7 +121,7 @@ The system is built with **feature-based modular design**, organizing code and a
   - API latency & error rates  
 
 - **Structured Logs (JSON)**  
-  - Includes `order_id`, status, and event type  
+  - Includes `order_id` for log correlation  
 
 ---
 
