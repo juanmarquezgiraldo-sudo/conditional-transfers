@@ -149,7 +149,7 @@ export class ConditionalTransfersService implements OnModuleInit {
       process.env.CREATE_TRANSFER_TOPIC_NAME,
       transferPayload
     );
-    
+
     this.logger.log({
       message: `Create transfer mesage published successfully`,
       idempotencyKey,
@@ -303,9 +303,7 @@ export class ConditionalTransfersService implements OnModuleInit {
   }
 
   async handleCreateTransferMessage(message, logger) {
-    const payload = JSON.parse(
-      message.data.toString()
-    ) as CreateTransferJobPayload;
+    const payload = message.data;
     logger.log({
       message: `Message received on CreateTransfer subscription successfully.`,
       messageId: message.id,
