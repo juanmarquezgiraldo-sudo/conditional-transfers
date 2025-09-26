@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { PubSub, Subscription } from "@google-cloud/pubsub";
+import { PubSub } from "@google-cloud/pubsub";
 import { CreateTransferJobPayload } from "src/conditional-transfers/conditional-transfers";
 
 @Injectable()
