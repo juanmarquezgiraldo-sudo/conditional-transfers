@@ -1,4 +1,9 @@
-import { Injectable, Logger } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import {
   ConditionalTransfer,
@@ -19,7 +24,7 @@ import { RedisCacheService } from "src/rediscache/redis.cache.service";
 const CONST_PAGE_SIZE = 10;
 
 @Injectable()
-export class ConditionalTransfersService {
+export class ConditionalTransfersService implements OnModuleInit {
   private readonly logger = new Logger(ConditionalTransfersService.name);
 
   constructor(
@@ -29,8 +34,12 @@ export class ConditionalTransfersService {
     private transfersApiProvider: TransfersApiProvider,
     private redisCacheService: RedisCacheService,
     @InjectRepository(User)
-    private usersRepository: Repository<User>,
+    private usersRepository: Repository<User>
   ) {}
+
+  async onModuleInit() {
+    await this.createTransferSubscription();
+  }
 
   async listConditionalTransfers(
     nextPage: number,
@@ -136,9 +145,11 @@ export class ConditionalTransfersService {
       userId: user.id,
     };
 
-    const messageId = await this.messageProviderService.publishCreateTransfer(
+    const messageId = await this.messageProviderService.publishMessage(
+      process.env.CREATE_TRANSFER_TOPIC_NAME,
       transferPayload
     );
+    
     this.logger.log({
       message: `Create transfer mesage published successfully`,
       idempotencyKey,
@@ -152,8 +163,9 @@ export class ConditionalTransfersService {
   // Places a conditional transfer, if processed or expired returns true
   // If not placed return false
   async placeConditionalTransfer(orderId: string): Promise<boolean> {
-
-    const lockAcquired = await this.redisCacheService.get(`order:lock:${orderId}`);
+    const lockAcquired = await this.redisCacheService.get(
+      `order:lock:${orderId}`
+    );
 
     if (lockAcquired) {
       return false;
@@ -188,7 +200,6 @@ export class ConditionalTransfersService {
       this.redisCacheService.del(`order:lock:${orderId}`);
       return true;
     }
-    
 
     if (conditionalTransfer.expires_at > new Date()) {
       this.logger.log({
@@ -201,7 +212,7 @@ export class ConditionalTransfersService {
       this.redisCacheService.del(`order:lock:${orderId}`);
       return true;
     }
-    
+
     const user = await this.redisCacheService.getOrSet(
       `user:${conditionalTransfer.user.id}`,
       async () => {
@@ -209,7 +220,7 @@ export class ConditionalTransfersService {
           where: { id: conditionalTransfer.user.id },
         });
       },
-      3600,
+      3600
     );
 
     if (!user) {
@@ -236,7 +247,7 @@ export class ConditionalTransfersService {
             user.api_secret
           );
         },
-        60,
+        60
       );
 
       let placeOrder = false;
@@ -254,10 +265,17 @@ export class ConditionalTransfersService {
       }
 
       if (placeOrder) {
-        const result = await this.transfersApiProvider.createConversion(rate.id, user.account, user.account, user.api_key, user.api_secret);
+        const result = await this.transfersApiProvider.createConversion(
+          rate.id,
+          user.account,
+          user.account,
+          user.api_key,
+          user.api_secret
+        );
         conditionalTransfer.status = TransferStatus.EXECUTED;
         conditionalTransfer.transaction_id = result.id;
-        await this.conditionalTransferRepository.save;(conditionalTransfer);
+        await this.conditionalTransferRepository.save;
+        conditionalTransfer;
         this.redisCacheService.del(`order:lock:${orderId}`);
         this.logger.log({
           message: `Conditional transfer is Executed`,
@@ -265,9 +283,8 @@ export class ConditionalTransfersService {
         });
         return true;
       }
-    this.redisCacheService.del(`order:lock:${orderId}`);
-    return false;
-      
+      this.redisCacheService.del(`order:lock:${orderId}`);
+      return false;
     } catch (error) {
       this.logger.error({
         message: `placeTransfer operation failed: 
@@ -283,5 +300,31 @@ export class ConditionalTransfersService {
       this.redisCacheService.del(`order:lock:${orderId}`);
       return false;
     }
+  }
+
+  async handleCreateTransferMessage(message, logger) {
+    const payload = JSON.parse(
+      message.data.toString()
+    ) as CreateTransferJobPayload;
+    logger.log({
+      message: `Message received on CreateTransfer subscription successfully.`,
+      messageId: message.id,
+      payload,
+      service: "MessageProvider",
+    });
+    const result = await this.placeConditionalTransfer(
+      payload.transferId.order_id
+    );
+    if (result) {
+      message.ack();
+    }
+    message.nack();
+  }
+
+  async createTransferSubscription() {
+    await this.messageProviderService.createSubscription(
+      process.env.CREATE_TRANSFER_SUB_NAME,
+      this.handleCreateTransferMessage.bind(this)
+    );
   }
 }
